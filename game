@@ -1,0 +1,205 @@
+/*
+  The circuit:
+   LCD RS pin to digital pin 12
+   LCD Enable pin to digital pin 11
+   LCD D4 pin to digital pin 5
+   LCD D5 pin to digital pin 4
+   LCD D6 pin to digital pin 3
+   LCD D7 pin to digital pin 2
+   LCD R/W pin to ground
+   LCD VSS pin to ground
+   LCD VCC pin to 5V
+   10K resistor:
+   ends to +5V and ground
+   wiper to LCD VO pin (pin 3)
+   JS VRx to A1
+   JS VRy to A0
+   JS SW to digital pin 7
+   10K resistor:
+   ends to ground and pin 8
+   btn to 5v
+*/
+
+// include the library code:
+#include <LiquidCrystal.h>
+
+////////////  CUSTOM CHARACTERS  //////////////////
+byte plane[8] = {
+  B10000,
+  B11000,
+  B11100,
+  B11111,
+  B11111,
+  B11100,
+  B11000,
+  B10000
+};
+byte block[8] = {
+  B11111,
+  B11111,
+  B11111,
+  B11111,
+  B11111,
+  B11111,
+  B11111,
+  B11111
+};
+/////////////////////////////////////////////
+
+/////////////  VARIABLES  //////////////////////
+const int rs = 12, en = 11, d4 = 5, d5 = 4, d6 = 3, d7 = 2;
+LiquidCrystal lcd(rs, en, d4, d5, d6, d7);
+const int SW_pin = 7;
+const int X_pin = 1;
+const int Y_pin = 0;
+const int button = 8;
+int buttonState = 0;
+int x = 0;
+int y = 0;
+int evil[2][2] = {
+  {15, 0},
+  {15, 1}
+};
+int score = 0;
+int highScore = 0;
+boolean play = false;
+
+/////////////////////////////////////////////
+/////////  SETUP  /////////////////////
+void setup() {
+  lcd.createChar(0, plane);
+  lcd.createChar(1, block);
+  lcd.begin(16, 2);
+  pinMode(SW_pin, INPUT);
+  digitalWrite(SW_pin, HIGH);
+  pinMode(button, INPUT);
+  Serial.begin(9600);
+}
+////////////////////////////////////////////
+//////////  LOOP  /////////////////
+void loop() {
+  lcd.setCursor(0, 0);
+  lcd.print("LETS PLAY A GAME");
+  lcd.setCursor(0, 1);
+  lcd.print("HIGH-SCORE: ");
+  lcd.print(highScore);
+
+  buttonState = digitalRead(button);
+  if (buttonState == HIGH) {
+    if (play == true) {
+      play == false;
+    }
+    else if (play == false) {
+      play = true;
+      score = 0;
+
+    }
+  }
+  else {
+    lcd.setCursor(0, 0);
+    lcd.print("LETS PLAY A GAME");
+    lcd.setCursor(0, 1);
+    lcd.print("HIGH-SCORE: ");
+    lcd.print(highScore);
+  }
+
+  while (play == true) {
+    Serial.println(digitalRead(SW_pin));
+    int ypos = analogRead(Y_pin);
+    int xpos = analogRead(X_pin);
+//////////////////  joystick position  /////////////////////////////
+    if (ypos <= 50) {
+      y = 0;
+      scrn(y, x, evil[0][0], evil[0][1], evil[1][0], evil[1][1]); //scrn = (x,y,ex,ey)
+    }
+    else if (ypos >= 1000) {
+      y = 1;
+      scrn(y, x, evil[0][0], evil[0][1], evil[1][0], evil[1][1]); //scrn = (x,y,ex,ey)
+    }
+    else if ((ypos > 100) && (ypos < 800)) {
+      scrn(y, x, evil[0][0], evil[0][1], evil[1][0], evil[1][1]); //scrn = (x,y,ex,ey)
+    }
+    if (xpos > 800) {
+      x++;
+      scrn(y, x, evil[0][0], evil[0][1], evil[1][0], evil[1][1]); //scrn = (x,y,ex,ey)
+    }
+    else if (xpos < 50) {
+      x--;
+      scrn(y, x, evil[0][0], evil[0][1], evil[1][0], evil[1][1]); //scrn = (x,y,ex,ey)
+    }
+    else if (x < 0) {
+      x = 0;
+      scrn(y, x, evil[0][0], evil[0][1], evil[1][0], evil[1][1]); //scrn = (x,y,ex,ey)
+    }
+    else if (x >= 15) {
+      x = 15;
+      scrn(y, x, evil[0][0], evil[0][1], evil[1][0], evil[1][1]); //scrn = (x,y,ex,ey)
+    }
+/////////////  joystick position end  ///////////////////////////////
+  }//end while
+}//end loop
+////////////  REFRESH SCREEN METHOD  ///////////////
+void scrn(int x, int y, int ey, int ex, int ey2, int ex2) {
+  lcd.clear();
+  lcd.setCursor(y, x);
+  lcd.write(byte(0));
+  evil_slide();
+  lcd.setCursor(ey, ex);
+  lcd.write(byte(1));
+  lcd.setCursor(ey2, ex2);
+  lcd.write(byte(1));
+  crash(ey, ex, ey2, ex2);
+  delay(150);
+}// end scrn
+///////////  how blocks move /////////////////////////////////
+void evil_slide() {
+  switch (ran()) {
+    case 1:
+      evil[0][0]--;
+      evil[1][0]--;
+      break;
+    case 2:
+      evil[0][0]--;
+      evil[1][0] -= 2;
+      break;
+    case 3:
+      evil[0][0] -= 2;
+      evil[1][0]--;
+      break;
+  }//end switch
+  if (evil[0][0] < 0) {
+    evil[0][0] = 16;
+    score++;
+  }
+  if (evil[1][0] < 0) {
+    evil[1][0] = 16;
+    score++;
+  }
+}//evil slide end
+//////////get a random numer to move the blocks//////////////////////
+int ran() { //dom
+  return random(1, 3);
+}//end random
+void crash(int ey, int ex, int ey2, int ex2) {
+  if (ey == x && y == ex || ey2 == x && ex2 == y) {
+    lcd.clear();
+    lcd.write("YOU HAVE CRASHED");
+    lcd.setCursor(1, 2);
+    lcd.print(score);
+    high_score();
+    pos_reset();
+    play = false;
+    delay(2000);
+  }
+}//crash end
+void high_score() {
+  if (score > highScore) {
+    highScore = score;
+  }
+}//end high score
+void pos_reset() {
+  x = 0;
+  y = 0;
+  evil[0][0] = 16;
+  evil[1][0] = 16;
+}//end pos reset
